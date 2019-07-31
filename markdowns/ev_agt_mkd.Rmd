@@ -1,0 +1,616 @@
+---
+title: "Aguacate"
+subtitle: "Análisis financiero"
+author: "Francisco J. López para EDC Perspectiva Integral"
+date: "Julio 2019"
+output:
+  tufte::tufte_html:
+    tufte_variant: "envisioned"
+    #keep_md: true
+  tufte::tufte_handout:
+    citation_package: natbib
+    latex_engine: xelatex
+  tufte::tufte_book:
+    citation_package: natbib
+    latex_engine: xelatex
+bibliography: ev_agt_bib.bib
+bibliographystyle: newapa #or apalike
+link-citations: no
+---
+
+```{r setup, include=FALSE}
+library(tufte)
+# invalidate cache when the tufte version changes
+knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'))
+options(htmltools.dir.version = FALSE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(extrafont)
+loadfonts(device = "win")
+load("~/OneDrive/R/evaluaciones/aguacate/aguacate_ev_wsp")
+```
+
+Esta entrega consta de dos apartados; el primero se centra en la determinación de una escala de producción de aguacate en México mínimamente rentable, estableciendo además su relación con respecto al horizonte temporal en el que se concreta su viabilidad financiera. Los resultados del primer apartado sirven de base para la construcción de una evaluación tipo para un escenario particular; el desarrollo de la evaluación del caso específico y sus resultados son el contenido del segundo apartado.
+
+# Escala mínima rentable
+
+Con el objetivo de encontrar la escala de plantación mínimamente rentable en México de una huerta de aguacate tecnificada con sistema de riego por goteo -sistema con el de mayor costo de inversión pero con los mayores beneficios respecto al aprovechamiento del recurso hídrico- y de caracterizar su viabilidad en términos financieros se desarrolló un modelo base construido a partir de información publicada en artículos de corte académico relacionados con los costos de inversión y operación de plantaciones de aguacate en México complementándola con datos dispersos en diversos sitios de internet especializados en temas agrotecnológicos.
+
+Las premisas que fundamentan el modelo base son agrupadas en las siguientes categorías: producción, comercialización, costos de operación, inversiones, aspectos contables, financiamiento y premisas de evaluación.
+
+## Producción
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+prmtrs %>% 
+  filter(Categoría == "pdn") %>% 
+  select(-Categoría, -subcat1, -subcat2) %>% 
+  filter(Concepto != "Superficie") %>% 
+  mutate(Concepto = c("Inicio de producción",
+                              "Estabilización de la producción",
+                              "Rendimiento inicial",
+                              "Rendimiento a partir de la estabilización",
+                              "Densidad de plantación")) %>% 
+  mutate(Magnitud = if_else(clave %in% c("pdn_ini", "pdn_esta"), scales::number(Magnitud, accuracy = 1), scales::number(Magnitud, accuracy = 0.1))) %>% 
+  select(-clave) %>% 
+    kableExtra::kable(caption = "Premisas de producción [fuentes: SIAP (2019) y Peña et al. (2015)]")
+```
+
+Se asume que el cultivo tarda cuatro años en alcanzar su potencial productivo y que durante el primer año de cosecha comercializable -tercer año del proyecto- las plantas muestran un rendimiento equivalente al 37.5% del que presentarán una vez estabilizada la producción [@Inv15].
+
+El rendimiento de 11.4 toneladas por hectárea es el promedio ponderado del rendimiento observado en todo el país en los últimos 5 años -de 2014 a 2018 inclusive- utilizando como ponderador a la producción del periodo correspondiente de cada entidad productora de aguacate que emplea el riego como modalidad de cultivo, teniendo como fuente de esta información al @Sia19. Si bien la productividad varía de región en región, el uso del rendimiento promedio contribuye a darle un carácter de generalidad al modelo, remitiendo las consecuencias de su uso al análisis de riesgos. Más adelante se ahondará al respecto.
+
+## Comercialización
+
+En concordancia con lo dicho respecto al rendimiento, el precio considerado en el modelo es el precio medio rural promedio observado en las entidades productoras de aguacate en México durante los últimos cinco años que emplean el riego como modalidad de cultivo: **16.96 pesos por kilogramo** [@Sia19]. El promedio es calculado en su forma ponderada utilizando como medida de distribución del peso específico de cada entidad a su volumen de producción corrrespondiente.
+
+## Costos de operación
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+prmtrs %>% 
+  filter(Categoría %in% c("cv", "cf")) %>% 
+  mutate(Concepto = if_else(clave == "cv_rep_herr", "Reposición de herramientas", as.character(Concepto))) %>% 
+  select(-Categoría, -clave, -subcat1, -subcat2) %>% 
+  mutate(Magnitud = scales::number(Magnitud, accuracy = 0.1, big.mark = ",")) %>% 
+  kableExtra::kable(caption = "Costos operativos [fuente: Franco et al. (2018)]")
+```
+
+Los conceptos de seguros, pago de servicios y renta de la tierra son considerados como costos fijos; sin embargo, para el caso de la renta de la tierra se asume un monto inicial inferior que se incrementa gradualmente hasta alcanzar el monto establecido para una huerta en plenitud de producción que es el expresado en la tabla de costos operativos. El resto de los conceptos entran en la categoría de costos variables [@Cost18].
+
+Los cambios de los costos variables ante cambios en la superficie no ocurren en forma lineal, sino que siguen un patrón creciente a una tasa decreciente conforme se va aumentando el hectareaje. Este patrón se verificó en los resultados de una encuesta realizada por la Dirección Regional de Occidente de FIRA @Coesc07 entre productores de Michoacán que emplean técnicas de riego similares pero a diferentes escalas productivas.
+
+## Inversión
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+prmtrs %>% 
+  filter(Categoría == "inv") %>% 
+  filter(clave != "inv_terr") %>% 
+  mutate(Concepto = c("Plántula",
+                      "Preparación del terreno",
+                      "Maquinaria y equipo",
+                      "Equipo de transporte y carga",
+                      "Sistema de riego")) %>% 
+  select(-Categoría, -clave, -subcat1, -subcat2) %>% 
+  mutate(Magnitud = scales::number(Magnitud, big.mark = ",")) %>%
+  arrange(UM) %>% 
+  kableExtra::kable(caption = "Premisas de inversión [fuente: Peña et al. (2015)]")
+```
+
+El único concepto de inversión que no asume dependencia de la extensión de la superficie de la huerta es el equipo de carga y transporte.
+
+Con excepción del concepto de sistema de riego los conceptos y montos de inversión fueron tomados de @Inv15.
+
+## Premisas contables
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+prmtrs %>% 
+  filter(Categoría == "cont") %>% 
+  filter(!(clave %in% c("cont_cp", "cont_cc", "cont_invent"))) %>% 
+  mutate(Concepto = c("Depreciación de maquinaria y equipo",
+                      "Depreciación de equipo de transporte",
+                      "Tasa impositiva",
+                      "Amortización de gastos preoperativos",
+                      "Depreciación de sistema de riego")) %>% 
+  arrange(Concepto) %>% 
+  select(-Categoría, -clave, -subcat1, -subcat2) %>%
+  mutate(Magnitud = scales::percent(Magnitud, accuracy = 1)) %>% 
+  kableExtra::kable(caption = "Premisas contables [fuente: Ley del Impuestos sobre la renta (2016)]")
+```
+
+Los porcentajes de depreciación están tomados de la Ley del Impuesto sobre la Renta vigente a la realización de este documento [@Lisr16].
+
+Se asume que la tasa impositiva es fija para cualquier nivel de utilidades.
+
+## Premisas de financiamiento
+
+Se considera como fuente exclusiva de los recursos financieros requeridos para llevar a cabo el proyecto los recursos aportados por los inversionistas.
+
+## Premisas de evaluación
+
+La tasa que es empleada como costo de oportunidad de los recursos financieros es del **12%**, misma que es solicitada tradicionalmente en los últimos años para evaluar los proyectos agroindustriales que solicitan recursos públicos a los programas de apoyo gubernamental.
+
+Dada la longevidad de una huerta de aguacate bien trabajada, una forma de evaluar sus beneficios a lo largo del tiempo sería fijar un horizonte de evaluación de mediano plazo al cual se le añadirían los beneficios económicos de los años posteriores vía el cálculo del valor de rescate en forma de perpetuidad.
+
+El horizonte de evaluación puede determinarse de acuerdo a los objetivos de los inversionistas pero un escenario razonable deberá considerar el tiempo que tarda el cultivo en alcanzar su nivel de estabilización, así como periodos posteriores a este evento para que se pueda evaluar su verdadero potencial económico. En principio, no se establece un horizonte de evaluación fijo por las razones que serán explicadas en el siguiente apartado.
+
+## Método
+
+En general, para efectos de evaluar la rentabilidad de un proyecto de inversión se recurre a la construcción de un flujo de caja a partir del cual se obtienen indicadores que sirven para calificar su desempeño en términos de su capacidad de generar beneficios económicos. Entre estos indicadores se encuentra el valor actual neto (VAN) del flujo, el cual debe arrojar un valor positivo para que el proyecto sea considerado como económicamente viable y es precisamente este criterio el que aquí se emplea en la determinación de la escala mínima rentable, quedando por establecer la relación existente entre el VAN y el horizonte de evaluación.
+
+Un flujo de caja de un proyecto tendrá tantos periodos evaluados como así se determine afectando esta decisión al resultado del cálculo de su valor presente neto, lo que implica que a distintos horizontes la escala mínima podría variar, pudiendo hablar entonces más de una frontera de escalas mínimas que de una escala mínima única.
+
+Para demostrar lo anterior, se efectuó una estimación del VAN basado en las premisas expuestas y considerando una variación tanto de la superficie de producción como del horizonte de evaluación. Para tal efecto se consideró un rango de variación de la superficie entre 0.5 y 100 hectáreas en intervalos de 0.5 hectáreas; cada una de estas superficies fue evaluada a distintos horizontes dentro de un rango de 8 y 20 años, contabilizando un total de 2,600 combinaciones posibles.
+
+Para captar el efecto de los horizontes de evaluación más lejanos no se consideró la inclusión del valor de rescate en los flujos de caja.
+
+## Resultados
+
+De las 2,600 estimaciones del VAN efectuadas, un total de 2,535 arrojan un VAN positivo, de las cuales se extraen los siguientes resultados:
+
+* Bajo las premisas y supuestos señalados, la escala mínima rentable es de 2 has; su viabilidad es alcanzada bajo un horizonte de evaluación de 13 años.  
+* Si el proyecto es evaluado a 8 años, la escala mínima es de 5 has.  
+* El horizonte de 10 años se encuentra entre los dos extremos de la frontera de escala mínima, por lo que bien pudiera considerase como un umbral adecuado para la evaluación de superficies iguales o superiores a las 3 has.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+vans_esca_fil %>% 
+  group_by(hrz) %>% 
+  summarise(sup = min(sup), van = min(vans)) %>%
+  group_by(sup) %>% 
+  summarise(hrz = min(hrz), van = min(van)) %>%
+  ggplot(aes(hrz, sup)) +
+  geom_step(col = "grey90") +
+  geom_point(aes(alpha = van), size = 5, col = "yellowgreen") +
+  labs(x = "Años", y = "Has",
+        title = "Relación entre la escala mínima rentable y el horizonte de evaluación",
+       subtitle = "VAN en miles de pesos",
+       caption = "Fuente: estimaciones propias") +
+  tema_gg +
+  scale_x_continuous(breaks = c(8,9,10,11,13,17), labels = c(8,9,10,11,13,17)) +
+  theme(axis.line.x = element_line(color = "lightgrey"),
+        axis.ticks.x = element_line(),
+        legend.position = c(0.85, 0.8))
+```
+
+# Estudio de caso: evaluación de 10 has a 10 años
+
+A manera de ejemplo de como se llevaría a cabo una evaluación típica de un proyecto de inversión de esta naturaleza, se seleccionó una superficie de 10 has en un horizonte de evaluación de 10 años. Dados los resultados anteriores, se sabe de antemano que una plantación con esta extensión es financieramente viable bajo las condiciones establecidas en las premisas anteriormente revisadas. No obstante, el objetivo que se persigue en este apartado es más bien el de mostrar a detalle el modelo financiero y los instrumentos de análisis que de su aplicación se desprenden para una evaluación específica.
+
+## Revisión de premisas
+
+En general, las premisas utilizadas en el cálculo de la escala mínima rentable se mantienen sin cambios, incorporando un par de elementos de evaluación:
+
+* Se hace explícito el concepto de inversión correspondiente al capital de trabajo, el cual se calcula a partir de  algunos conceptos de ingreso y salida de dinero del propio flujo con el método de pérdidas máximas. Si bien, este concepto fue calculado y utilizado en el proceso de selección de la escala mínima rentable, no fue incluido en las premisas de inversión por tratarse de un concepto cuyo cálculo depende de un escenario en particular. 
+* Se reintegra al flujo el concepto de valor de rescate, lo que permite evaluar el proyecto en virtud de sus beneficios recientes y los de mayor plazo.
+
+Una vez incorporado el concepto de capital de trabajo, el monto total de las inversiones requeridas quedaría distribuído de la siguiente manera:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$inv %>% 
+  select(Concepto, Magnitud) %>% 
+  filter(Magnitud != 0) %>% 
+  arrange(Magnitud) %>%
+  mutate(pct_fmt = scales::percent(Magnitud),
+         col_pal = if_else(Magnitud == max(Magnitud), "T", "F"),
+         aux = Magnitud / sum(Magnitud),
+         txt = if_else(aux > 0.1, scales::percent(aux), "")) %>% 
+  ggplot(aes(x = reorder(Concepto, Magnitud), y = Magnitud)) +
+  geom_col(aes(fill = col_pal)) +
+  coord_flip() +
+  labs(x = "", y = "",
+       title = "Conceptos de inversión en valor actual",
+       subtitle = "Participación porcentual en el total",
+       caption = "Fuente: estimaciones propias.") +
+  scale_fill_manual(values = c("T" = "yellowgreen", "F" = "grey85")) +
+  scale_x_discrete(labels = c("Preparación de terreno", "Plántula", "Equipo de transporte y carga", 
+                              "Capital de trabajo", "Maquinaria y equipo", "Sistema de riego")) +
+  geom_text(aes(label = txt), size = 9, fontface = "bold",
+            hjust = "right", col = "white",
+            nudge_y = -0.0222 * max(md_fn_10$inv[,"Magnitud"])) + 
+  tema_gg +
+  theme(legend.position = "none",
+    axis.text.x = element_blank())
+```
+
+A partir del año de estabilización los costos de operación se distribuyen de la siguiente manera:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$costos %>% 
+  select(Categoría, Concepto, Magnitud) %>% 
+  arrange(Magnitud) %>% 
+  mutate(aux = Magnitud / sum(Magnitud),
+         col_pal = if_else(Magnitud == max(Magnitud), "T", "F"),
+         txt = if_else(aux > 0.1, scales::percent(aux), "")) %>% 
+  ggplot(aes(x = reorder(Concepto, Magnitud), y = Magnitud)) +
+  geom_col(aes(fill = col_pal)) +
+  scale_fill_manual(values = c("T" = "yellowgreen", "F" = "grey85")) +
+  coord_flip() +
+  geom_text(aes(label = txt), hjust = "right", col = "white", fontface = "bold",
+            size = 6, nudge_y = - 0.0222 * max(md_fn_10$costos[,"Magnitud"])) +
+  labs(x = "", y = "",
+       title = "Costos de operación a partir de la estabilización",
+       subtitle = "Participación porcentual en el total",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg +
+  theme(legend.position = "none",
+        axis.text.x = element_blank())
+```
+
+El escenario planteado contempla un crecimiento gradual de los costos hasta el año de estabilización, a partir del cual los costos se mantienen constantes. Los costos fijos, encabezados por el pago de renta, son los de mayor cuantía a lo largo de todo el horizonte evaluado.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$flujo %>% 
+  filter(concepto %in% c("cv", "cf")) %>%
+  gather(key = "periodo", value = "monto", -concepto) %>% 
+  filter(periodo != 0) %>% 
+  ggplot(aes(x = as.numeric(periodo), y = monto)) +
+  geom_col(aes(fill = concepto)) +
+  scale_fill_manual(values = c("cv" = "yellowgreen", "cf" = "grey85")) +
+  scale_x_continuous(breaks = 1:10, labels = 1:10) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "", y = "",
+       title = "Evolución de los costos",
+       subtitle = "Miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg +
+  theme(legend.position = c(.2,.8),
+        legend.title = element_blank())
+```
+
+Del tercer año en adelante, los ingresos superan a los costos operativos.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$flujo %>% 
+  filter(concepto %in% c("ing", "cv", "cf")) %>% 
+  .[,-2] %>% 
+  gather(key = "periodo", value = "monto", -concepto) %>% 
+  spread(concepto, monto) %>% 
+  mutate(ctt = cv + cf) %>% 
+  select(-cv, -cf) %>% 
+  mutate(periodo = as.numeric(periodo),
+         txt_ing = if_else(periodo == 9, "Ingresos", ""),
+         txt_ctt = if_else(periodo == 9, "Costos", "")) %>% 
+  arrange(periodo) %>% 
+  ggplot(aes(x = periodo)) +
+  geom_line(aes(y = ing), col = "yellowgreen") +
+  geom_point(aes(y = ing), col = "yellowgreen") +
+  geom_text(aes(y = ing - 0.05*(max(ing)), label = txt_ing), family = "Lato") +
+  geom_line(aes(y = ctt), col = "grey85") +
+  geom_point(aes(y = ctt), col = "grey85") +
+  geom_text(aes(y = ctt - 0.05*(max(ing)), label = txt_ctt), family = "Lato") +
+  scale_x_continuous(breaks = 1:10, labels = 1:10) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "", y = "",
+       title = "Evolución de los ingresos y de los costos de operación",
+       subtitle = "Miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg
+```
+
+Con estos elementos el flujo de caja del proyecto sería:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$flujo %>% 
+  filter(!(concepto %in% c("intereses", "credito", "apoyo", "repayment"))) %>%
+  mutate_at(vars(-concepto), ~scales::comma(.)) %>%
+  #mutate_at(vars(-concepto), ~kableExtra::cell_spec(., align = "r")) %>% 
+  kableExtra::kable(caption = "Flujo de caja en miles de pesos (fuente: estimaciones propias)", escape = F, align = "r") %>% 
+  kableExtra::row_spec(c(4,6,8,12:14), bold = T) %>% 
+  kableExtra::footnote(general = "ing - ingresos; cv - costos variables; cf - costos fijos; ebitda - utilidad de operación; dpr - depreciaciones; ebt - utilidad antes de impuestos; taxes - impuestos; profit - utilidad neta; capex - inversiones; wk - capital de trabajo; tv - valor de rescate; fcf - flujo de caja; fcf_pv - flujo de caja en valor presente; fcf_pv_cum - flujo de caja en valor presente y acumulado.")
+```
+
+En su forma gráfica se aprecia como se revierte el flujo negativo a partir del tercer año y, por otro lado, la importante contribución del valor de rescate en el último año.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$flujo %>%
+  filter(concepto == "fcf") %>% 
+  select(-concepto) %>%
+  gather() %>%
+  rename(periodo = key, flujo = value) %>%
+  mutate(periodo = as.numeric(periodo),
+         col_fill = if_else(flujo <= 0, T, F)) %>% 
+  ggplot(aes(x = periodo, y = flujo)) +
+  geom_col(aes(fill = col_fill)) +
+  geom_hline(yintercept = 0, col = "darkgrey", lty = 2) +
+  scale_fill_manual(values = c("grey85","yellowgreen")) +
+  scale_x_continuous(breaks = c(0:10)) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "", y = "",
+       title = "Flujo de caja del proyecto",
+       subtitle = "Miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg +
+  theme(legend.position = "none")
+```
+
+Otra manera de revisar el flujo de caja es a partir de su forma descontada y acumulada, lo cual permite ver periodo tras periodo la evolución del VAN hasta alcanzar su máximo y definitivo valor en el último periodo de evaluación. También es posible observar el periodo de recuperación de las inversiones en el octavo periodo.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+wf_df <- data.frame(periodo = 0:prmtrs[prmtrs$clave == "eval_hrz", "Magnitud"]) %>% 
+  mutate(flujo = md_fn_10$flujo %>% 
+           filter(concepto == "fcf_pv") %>% 
+           select(-concepto) %>%
+           gather() %>%
+           select(value) %>% 
+           pull(),
+         inicio = 0,
+         fin = flujo)
+for(i in 2:nrow(wf_df)) {
+  wf_df$inicio[i] <- wf_df$fin[i - 1]
+  wf_df$fin[i] <- wf_df$flujo[i] + wf_df$inicio[i]
+}
+wf_df %>% 
+  mutate(fin = inicio + flujo,
+         eje_x = 1:nrow(wf_df),
+         col_sel = if_else(flujo <= 0, T, F),
+         txt = scales::comma(fin),
+         txt = if_else(fin %in% c(min(fin), max(fin)), txt, ""),
+         eje_y_txt = if_else(flujo <= 0, fin + (-0.04406491 * fin), fin - (0.02241248 * fin))) %>% 
+  ggplot(aes(xmin = eje_x - 0.45,
+             xmax = eje_x + 0.45,
+             ymin = inicio,
+             ymax = fin)) +
+  geom_rect(aes(fill = col_sel)) +
+  scale_fill_manual(values = c("grey85", "yellowgreen")) +
+  scale_x_continuous(breaks = c(1:11), labels = c(0:10)) +
+  geom_hline(yintercept = 0, col = "darkgrey", lty = 2) +
+  geom_text(aes(x = eje_x, y = eje_y_txt, label = txt), col = "white", size = 3, family = "Lato") +
+  labs(x = "", y = "",
+       title = "Flujo de caja del proyecto descontado y acumulado",
+       subtitle = "Miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  scale_y_continuous(label = scales::comma) +
+  tema_gg +
+  theme(legend.position = "none")
+```
+
+Los indicadores habituales de viabilidad financiera apuntan a la rentabilidad de la huerta: VAN positivo, valor anual equivalente (VAE) positivo, tasa interna de retorno (TIR) superior a la tasa de descuento del 12% y un periodo de recuperación de las inversiones (Pbk) en un plazo menor al horizonte de evaluación, todo esto bajo un escenario sin incertidumbre.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$ind_fin %>% 
+  magrittr::set_names(c("VAN", "VAE", "TIR", "bcr", "Pbk")) %>% 
+  gather() %>% #cbind(data.frame(value2 = c(100000,-3,0.1,1,NA))) %>% select(-value) %>% rename(value = value2) %>% 
+  filter(key != "bcr") %>%
+  mutate(value = as.numeric(value),
+         value_fmt = value,
+         value_fmt = if_else(key %in% c("VAN", "VAE"), scales::comma(value), as.character(NA)),
+         value_fmt = if_else(key == "TIR", paste0(value*100, "%"), value_fmt),
+         value_fmt = if_else(key == "Pbk", if_else((is.na(value)), "> hrz", paste(scales::number(value), "años", "")), value_fmt),
+         aux = "P",
+         aux = if_else(key == "VAN", if_else(value >= 0, "P", "N"), aux),
+         aux = if_else(key == "VAE", if_else(value >= 0, "P", "N"), aux),
+         aux = if_else(key == "TIR", if_else(value >= prmtrs[prmtrs$clave == "eval_td", "Magnitud"], "P", "N"), aux),
+         aux = if_else(key == "Pbk", if_else(!(is.na(value)), "P", "N"), aux),
+         eje_x = if_else(key %in% c("VAN", "VAE"), 1.5, 5.5),
+         eje_y = if_else(key %in% c("VAN", "TIR"), 5.5, 1.5)) %>%
+  ggplot(aes(x = eje_x, y = eje_y)) +
+  ylim(0,8) + xlim(1,8) +
+  geom_text(aes(label = value_fmt), hjust = "left", family = "Lato", size = 13, col = "darkgrey") +
+  geom_text(aes(label = key, x = eje_x - 0.1, y = eje_y + 0.4), hjust = "right",
+            family = "Lato Light", col = "darkgrey") +
+  scale_shape_manual(values = c("P" = 17, "N" = 25)) +
+  scale_fill_manual(values = c("N" = "red", "P" = "yellowgreen")) +
+  scale_color_manual(values = c("N" = "red", "P" = "yellowgreen")) +
+  geom_point(aes(x = eje_x - 0.3, y = eje_y - 0.4, shape = aux, col = aux, fill = aux), size = 3) +
+  labs(x = "", y = "",
+       title = "Indicadores de rentabilidad",
+       subtitle = "VAN y VAE en miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg +
+  theme(legend.position = "none",
+        axis.text = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+```
+
+La manera tradicional de presentar el análisis de sensibilidad implica el planteamiento de diversos escenarios para las variables de mayor relevancia para el modelo financiero y en ocasiones sobre las que se tiene un menor control como lo son el precio de venta, el costo de los principales insumos y el volumen de ventas.
+
+Una alternativa que remite el análisis a la interpretación de un solo indicador por variable estudiada es el cálculo del coeficiente de elasticidad evaluado en términos del cambio porcentual que se requiere en las variables de interés para modificar el VAN hasta que este alcance un valor igual a cero. El signo del coeficiente estimado representa la relación de la variable respecto al VAN y su magnitud en términos absolutos es un indicativo de la sensibilidad de la variable, a mayor magnitud, mayor sensibilidad y viceversa.
+
+Por ejemplo, el coeficiente de elasticidad del precio medio rural (pmr) de 3.16 indica que un incremento de un 1% en el precio provoca una aumento en el VAN del 3.16%. Las otras dos variables analizadas son los costos variables (cv) y el rendimiento (yield).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$sens %>% #cbind(data.frame(elas = c(-0.88, 10.33, 2.33))) %>% select(-elasticidad) %>% rename(elasticidad = elas) %>% 
+  mutate(y_ini = rank(-elasticidad, ties.method = "first"),
+         aux_fct = abs(2/elasticidad),
+         aux2_fct = min(aux_fct),
+         fct = if_else(aux2_fct < 1, aux2_fct, 1),
+         y_fin = (elasticidad * fct + y_ini)) %>% 
+  gather(y_ini, y_fin, key = "posicion", value = "eje_y") %>% 
+  mutate(eje_x = if_else(posicion == "y_ini", 2, 5)) %>%
+  mutate(lab_ini = if_else(eje_x == 2, variable, as.factor(NA)),
+         pos_lab_ini = eje_x - 0.3,
+         lab_fin = if_else(eje_x == 2, scales::number(elasticidad, accuracy = 0.01), as.character(NA)),
+         pos_lab_fin = eje_x + 0.3,
+         col_sel = if_else(abs(elasticidad) == max(abs(elasticidad)), "T", "F")) %>% 
+  ggplot(aes(eje_x, eje_y)) +
+    geom_point(aes(col = col_sel), size = 6) +
+    geom_line(aes(group = variable, col = col_sel), size = 1) +
+    geom_text(aes(x = eje_x - 2, label = lab_ini, col = col_sel), hjust = "left", size = 7, family = "Lato Light") +
+    geom_text(aes(x = eje_x - 0.5, label = lab_fin, col = col_sel), hjust = "right", size = 7, family = "Lato Light") +
+    labs(x = "", y = "",
+         title = "Sensibilidad de variables seleccionadas",
+         subtitle = "Coeficientes de elasticidad",
+         caption = "Fuente: estimaciones propias.") +
+    xlim(0,5) + ylim(0,4) +
+    scale_color_manual(values = c("F" = "grey80", "T" = "yellowgreen")) +
+    tema_gg +
+    theme(axis.line.y = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks.y = element_blank(),
+          legend.position = "none")
+```
+
+Hasta este punto el análisis se ha efectuado haciendo a un lado el factor incertidumbre en algunas de las variables, principalmente en aquellas en las que se tiene un menor control. Para ejemplificar la inclusión de condiciones de incertidumbre en el modelo financiero se hará uso de las variables rendimiento y precio medio rural, recordando que su procedencia implica tantas condiciones diversas como la producción de aguacate durante los cinco últimos años en diferentes estados del país. Es de esperar que ante un escenario de tanta heterogeneidad la incertidumbre se acentúe.
+
+La variación en los datos de los rubros de rendimiento y precio se aprecian mejor al resumir su información de forma estadística:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+gridExtra::grid.arrange(nrow = 2,
+agt_nal %>%
+  filter(anio %in% c(2014:2018), idmodalidad != 2) %>% 
+  select(anio, rendimiento) %>% 
+  ggplot(aes(rendimiento)) +
+  geom_histogram(bins = 15, fill = "grey85", col = "grey85", alpha = 0.1) +
+  geom_vline(xintercept = agt_nal %>%
+               filter(anio %in% c(2014:2018, idmodalidad != 2)) %>% 
+               summarise(rdm = sum(rendimiento * volumenproduccion) / sum(volumenproduccion)) %>% 
+               pull(), lty = 2, col = "yellowgreen", size = 1) +
+  labs(x = "", y = "",
+       title = "Rendimiento por ha") +
+  tema_gg +
+  theme(axis.line.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.x = element_line()),
+
+data.frame(nom = c("Media", "D.E.", "Mínimo", "1er Q",
+                   "Mediana", "3er Q", "Máximo", "MAD", "IQR", "CV"),
+           est = agt_nal %>%
+  filter(anio %in% c(2014:2018), idmodalidad != 2) %>% 
+  select(rendimiento) %>% 
+  summarytools::descr() %>% .[1:10,1]) %>% 
+  mutate(est = scales::number(est, accuracy = 0.01),
+         eje_y = 11:2,
+         eje_x_n = 1,
+         eje_x_e = 2.5) %>% 
+  ggplot(aes(y = eje_y)) +
+  geom_text(aes(x = eje_x_n, label = nom), family = "Lato Light", hjust = "left", size = 4, col = "darkgrey") +
+  geom_text(aes(x = eje_x_e, label = est), family = "Lato", size = 4, hjust = "right", col = "darkgrey") +
+  xlim(0, 3.5) + ylim(1,12) +
+  labs(x = "", y = "") +
+  tema_gg +
+  theme(axis.line.y = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks.y = element_blank()),
+
+agt_nal %>%
+  filter(anio %in% c(2014:2018), idmodalidad != 2) %>% #filter(rendimiento == 27.95)
+  select(anio, preciomediorural) %>% #group_by(idmodalidad) %>% count()
+  mutate(preciomediorural = preciomediorural / 1000) %>% 
+  ggplot(aes(preciomediorural)) +
+  geom_histogram(bins = 15, fill = "grey85", col = "grey85", alpha = 0.1) +
+  geom_vline(xintercept = agt_nal %>%
+               filter(anio %in% c(2014:2018, idmodalidad != 2)) %>% 
+               summarise(rdm = sum(preciomediorural * volumenproduccion) / sum(volumenproduccion)) %>% 
+               pull() / 1000, lty = 2, col = "yellowgreen", size = 1) +
+  labs(x = "", y = "",
+       title = "Precio medio rural (mxp/kg)") +
+  tema_gg +
+  theme(axis.line.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.x = element_line()),
+
+data.frame(nom = c("Media", "D.E.", "Mínimo", "1er Q",
+                   "Mediana", "3er Q", "Máximo", "MAD", "IQR", "CV"),
+           est = agt_nal %>%
+             filter(anio %in% c(2014:2018), idmodalidad != 2) %>% #filter(rendimiento == 27.95)
+             select(preciomediorural) %>% #group_by(idmodalidad) %>% count()
+             mutate(preciomediorural = preciomediorural / 1000) %>% 
+             summarytools::descr() %>% .[1:10,1]) %>% 
+  mutate(est = scales::number(est, accuracy = 0.01),
+         eje_y = 11:2,
+         eje_x_n = 1,
+         eje_x_e = 2.5) %>% 
+  ggplot(aes(y = eje_y)) +
+  geom_text(aes(x = eje_x_n, label = nom), family = "Lato Light", hjust = "left", size = 4, col = "darkgrey") +
+  geom_text(aes(x = eje_x_e, label = est), family = "Lato", size = 4, hjust = "right", col = "darkgrey") +
+  xlim(0, 3.5) + ylim(1,12) +
+  labs(x = "", y = "") +
+  tema_gg +
+  theme(axis.line.y = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks.y = element_blank()), bottom = grid::textGrob("Fuente: estimaciones propias.",
+                                                           gp = grid::gpar(fontsize = 9, family = "Lato"),
+                                                           hjust = 1, x = 1))
+```
+
+Para incluir el efecto de la multiplicidad de escenarios que surgen a partir de combinar los posibles valores que adquieren las variables rendimiento y precio se recurre a un proceso de modelación estadística del VAN que consiste en encontrar las funciones de distribución de probabilidad que mejor se ajusten a los datos de las variables de incertidumbre; una vez identificadas, las funciones son utilizadas para generar valores en forma aleatoria -en este caso se generaron 1,000 por cada variable- cuyas combinaciones son utilizadas en el modelo financiero para el cálculo iterativo del VAN; a partir de este conjunto de estimaciones del VAN se construye su rango estadístico, el cual incluye el factor incertidumbre en forma explícita.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$risk_vans_scaled %>% 
+  ggplot(aes(x = .)) +
+  geom_histogram(bins = 15, fill = "white", col = "grey90", aes(x = ., y = stat(density))) +
+  stat_function(fun = get(paste0("d", md_fn_10$pdf)), n = 101,
+                args = list(location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                col = "yellowgreen", size = 0.75) +
+  scale_y_continuous(breaks = NULL) +
+  geom_vline(xintercept = get(paste0("q", md_fn_10$pdf))(0.025, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+             col = "grey35", lty = 2) +
+  geom_vline(xintercept = get(paste0("q", md_fn_10$pdf))(0.975, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+             col = "grey35", lty = 2) +
+ geom_polygon(data = md_fn_10$risk_vans_scaled %>%
+              magrittr::set_names("van_sca") %>%
+              rbind(data.frame(van_sca = c(get(paste0("q", md_fn_10$pdf))(0.025, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                                           get(paste0("q", md_fn_10$pdf))(0.975, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2])))) %>% 
+                 arrange(van_sca) %>% 
+                 mutate(dens = get(paste0("d", md_fn_10$pdf))(van_sca, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                        dens = if_else(van_sca <= get(paste0("q", md_fn_10$pdf))(0.025, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]), 0, dens),
+                        dens = if_else(van_sca >= get(paste0("q", md_fn_10$pdf))(0.975, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]), 0, dens)),
+               aes(x = van_sca, y = dens), fill = "grey", alpha = 0.35) +
+  labs(x = "", y = "",
+       title = "Intervalo de confianza al 95% del VAN",
+       subtitle = "Miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg +
+  theme(axis.ticks.x = element_line()) +
+  scale_x_continuous(breaks = c(get(paste0("q", md_fn_10$pdf))(0.025, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                               fit_escala(md_fn_10$risk_vans)$reescala_sust / fit_escala(md_fn_10$risk_vans)$reescala_mult,
+                               get(paste0("q", md_fn_10$pdf))(0.975, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2])),
+                     labels = scales::comma(c(md_fn_10$prob_van_interval$van_000_mxp[1], 0, md_fn_10$prob_van_interval$van_000_mxp[2])))
+```
+
+El riesgo asociado a la incertidumbre de las variables rendimiento y precio puede evaluarse empleando la misma función de distribución de probabilidades del VAN utilizada anteriormente fijando la atención sobre el área de la izquierda del VAN con valor igual a cero; a esta superficie se le denomina tasa de riesgo (TR).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+md_fn_10$risk_vans_scaled %>% 
+  ggplot(aes(x = .)) +
+  geom_histogram(bins = 15, fill = "white", col = "grey90", aes(x = ., y = stat(density))) +
+  geom_text(data = md_fn_10$risk_vans_scaled, aes(x = quantile(.,0.99), y = quantile(density(.)$y,0.925),
+                                                  label = paste0("TR: ",
+                                                                 scales::percent(as.numeric(md_fn_10$risk_rate),
+                                                                                accuracy = 0.1))),
+            family = "Lato", color = "grey35", size = 5) +
+  stat_function(fun = get(paste0("d", md_fn_10$pdf)), n = 101,
+                args = list(location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                col = "yellowgreen", size = 0.75) +
+  scale_y_continuous(breaks = NULL) +
+  geom_polygon(data = md_fn_10$risk_vans_scaled %>%
+                 magrittr::set_names("van_sca") %>%
+                 rbind(data.frame(van_sca = c(fit_escala(md_fn_10$risk_vans)$reescala_sust / fit_escala(md_fn_10$risk_vans)$reescala_mult))) %>% 
+                 arrange(van_sca) %>% 
+                 mutate(dens = get(paste0("d", md_fn_10$pdf))(van_sca, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                        dens = if_else(van_sca == min(van_sca), 0, dens),
+                        dens = if_else(van_sca > fit_escala(md_fn_10$risk_vans)$reescala_sust / fit_escala(md_fn_10$risk_vans)$reescala_mult, 0, dens)),
+               aes(x = van_sca, y = dens), fill = "grey", alpha = 0.35) +
+  geom_vline(xintercept = fit_escala(md_fn_10$risk_vans)$reescala_sust / fit_escala(md_fn_10$risk_vans)$reescala_mult,
+             col = "grey50", lty = 2) +
+  labs(x = "", y = "",
+       title = "Intervalo de riesgo, VAN < 0",
+       subtitle = "Miles de pesos",
+       caption = "Fuente: estimaciones propias.") +
+  tema_gg +
+  theme(axis.ticks.x = element_line()) +
+  scale_x_continuous(breaks = c(get(paste0("q", md_fn_10$pdf))(0.025, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2]),
+                                fit_escala(md_fn_10$risk_vans)$reescala_sust / fit_escala(md_fn_10$risk_vans)$reescala_mult,
+                                get(paste0("q", md_fn_10$pdf))(0.975, location = md_fn_10$pdf_par[1], scale = md_fn_10$pdf_par[2])),
+                     labels = scales::comma(c(md_fn_10$prob_van_interval$van_000_mxp[1], 0, md_fn_10$prob_van_interval$van_000_mxp[2])))
+```
+
+## Revisión de resultados y consideraciones finales
+
+* Poco más del 80% de las inversiones requeridas se concentran en tres rubros: sistema de riego, adquisición de maquinaria y equipo y capital de trabajo.
+
+* La renta de la tierra es por mucho el concepto de gasto que implica las mayores erogaciones: 68.8% del total; al tratarse de un costo fijo, este rubro se dejó fuera del análisis de sensibilidad, por lo que no se puede señalar con precisión hasta este punto el impacto de sus variaciones sobre la rentabilidad del proyecto. Su incorporación al análisis de sensibilidad de este y otros conceptos serán materia de otra entrega.
+
+* Aun si se dejara fuera de la evaluación al valor de rescate o al menos se redujera su magnitud, el proyecto seguiría siendo financieramente viable en un horizonte de 10 años como permite apreciarlo el periodo de recuperación de las inversiones en 8 años, situación que se previó desde su planteamiento.
+
+* Tanto el rendimiento como el precio se encuentran directamente ligados a la generación de ingresos; las alteraciones de estas dos variables son las que tienen un mayor impacto sobre la rentabilidad del proyecto. En particular, una reducción del 37% en estas variables llevarían al proyecto a una zona de inviabilidad. En cambio, las modificaciones a los costos variables -el otro rubro evaluado en términos de su sensibilidad- tienen un efecto reducido al punto de requerir más que triplicar su valor actual para llevar al VAN del proyecto a un valor de cero.
+
+* Debido a que las cifras correspondientes al rendimiento y precio provienen de una amplia gama de posibles magnitudes, la incertidumbre respecto al valor que estas cifras pueden tomar es de consideración. Al incorporar esta incertidumbre al modelo se estima una posibilidad del 30% de que el proyecto no sea financieramente viable. En realidad, este porcentaje puede reducirse en la medida en que las cifras de estas dos variables se circunscriban a un contexto más específico, es decir, que provengan de regiones con características similares a las del sitio en el que se llevaría a cabo el proyecto, de este modo la variabilidad se reduciría y consecuentemente la incertidumbre. Un ejercicio donde se demuestre lo anterior es material para entregas posteriores.
+
+* Un elemento sobre el cual vale la pena profundizar más adelante es en la determinación de una tasa de descuento que se adecúe al sector productor de aguacate.
+
+# Referencias
